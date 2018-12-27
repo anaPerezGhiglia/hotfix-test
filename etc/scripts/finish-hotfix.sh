@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+#set -x
 
 function get_current_version () {
     echo $(cat conf/application.conf | grep "app.version" | awk -F= '{print $2}' | sed 's/\"//g')
@@ -33,9 +33,12 @@ git push origin $RELEASE_VERSION
 git checkout develop
 git pull origin develop
 DEVELOP_VERSION=$(get_current_version)
+echo "develop version: $DEVELOP_VERSION"
 git merge --no-ff -s recursive -X ours $RELEASE_BRANCH_NAME
+echo "*** merging to develop done!"
 sed -i "s/app.version\s*=\s*\".*\"/app.version = \"$DEVELOP_VERSION\"/g" conf/application.conf
 git add -A
+echo "------ returning develop version"
 git commit --amend --no-edit
 git push origin develop
 
