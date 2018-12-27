@@ -41,7 +41,7 @@ git push origin develop
 
 git checkout master
 git pull origin master
-sbt publish
+#sbt publish
 
 git branch -D $RELEASE_BRANCH_NAME
 git push origin :$RELEASE_BRANCH_NAME
