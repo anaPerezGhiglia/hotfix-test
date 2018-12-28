@@ -1,7 +1,7 @@
 #!/bin/bash
 #set -x
 
-GIT_MERGE_AUTOEDIT=no
+GIT_MERGE_AUTOEDIT=yes
 function get_current_version () {
     echo $(cat conf/application.conf | grep "app.version" | awk -F= '{print $2}' | sed 's/\"//g')
 }
