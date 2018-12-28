@@ -34,6 +34,8 @@ git checkout develop
 git pull origin develop
 DEVELOP_VERSION=$(get_current_version)
 echo "develop version: $DEVELOP_VERSION"
+echo "merging into develop"
+sleep 3
 git merge --no-ff -s recursive -X ours $RELEASE_BRANCH_NAME
 echo "*** merging to develop done!"
 sed -i "s/app.version\s*=\s*\".*\"/app.version = \"$DEVELOP_VERSION\"/g" conf/application.conf
