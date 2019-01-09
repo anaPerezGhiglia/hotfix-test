@@ -1,0 +1,5 @@
+#!/bin/bash
+
+VERSION_NUMBER=$1
+chan release $VERSION_NUMBER
+./removeTagsPrefix
