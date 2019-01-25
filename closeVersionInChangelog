@@ -1,5 +1,19 @@
 #!/bin/bash
 
 VERSION_NUMBER=$1
+
+if [ -z "$VERSION_NUMBER" ]
+then
+	echo
+	echo "Must provide new release version"
+	echo "Exiting without performing any changes ..."
+	exit
+fi
+
+
 chan release $VERSION_NUMBER
-./removeTagsPrefix
+
+# Remove chan's tags prefix
+# e.g.: replace v1.0 for 1.0
+sed -i "s/v\([[:digit:]]\+\)/\1/g" CHANGELOG.md
+

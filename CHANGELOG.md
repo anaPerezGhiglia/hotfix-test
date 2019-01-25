@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+### Added
+ - ble
+ - bla
+ 
+### Fixed
+- fixed blo
+ 
+## [1.0.13] - 2019-01-09
+### Added
+- bla
+
+## [1.0.12] - 2019-01-09
+### Added
+- lalala
+- lelelele
 
 ## [1.0.11] - 2019-01-09
 ### Added
@@ -58,7 +73,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 - Add b 
 
-[unreleased]: https://github.com/:anaPerezGhiglia/hotfix-test/compare/1.0.11...HEAD
+[unreleased]: https://github.com/:anaPerezGhiglia/hotfix-test/compare/v1.0.13...HEAD
+[1.0.13]: https://github.com/:anaPerezGhiglia/hotfix-test/compare/1.0.12...v1.0.13
+[1.0.12]: https://github.com/:anaPerezGhiglia/hotfix-test/compare/1.0.11...1.0.12
 [1.0.11]: https://github.com/:anaPerezGhiglia/hotfix-test/compare/1.0.10...1.0.11
 [1.0.10]: https://github.com/:anaPerezGhiglia/hotfix-test/compare/1.0.9...1.0.10
 [1.0.9]: https://github.com/:anaPerezGhiglia/hotfix-test/compare/1.0.8...1.0.9
