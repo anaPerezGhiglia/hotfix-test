@@ -7,24 +7,41 @@ import re
 import fileinput
 import datetime
 import configparser
-from gi.importer import repository
-from debian import changelog
 from itertools import tee
 from functools import reduce
+import os
 
 VERSION_PATTERN = '##\s\[(\d+(?:\.\d+)*)'
 CHANGELOG_FILE_NAME = 'CHANGELOG.md'
-PROJECT_ROOT_DIR = ''
 GITHUB_DOMAIN = 'https://github.com/'
 RELEASE_FOOTNOTE_REGEX = '\[.+\]\:\s(.+)'
 SUBSECTION_HEADER = '### '
 UNRELEASED_IGNORECASE = re.compile(re.escape('[Unreleased]'), re.IGNORECASE)
 
+CHANGELOG_HEADER = """# Changelog
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+
+## [Unreleased]
+"""
+RED = '\033[0;31m'
+GREEN = '\033[0;32m'
+NC = '\033[0m'
+
+def colored_text(msg, color):
+    return color + msg + NC
+
+def error(msg):
+    return colored_text(msg, RED)
+
+def success(msg):
+    return colored_text(msg, GREEN)
 
 class Repository:
-    def __init__(self):
+    def __init__(self, project_dir):
         git_config = configparser.ConfigParser()
-        git_config.read(file_path('.git/config'))
+        git_config.read(file_path(project_dir, '.git/config'))
         remote_url = git_config['remote "origin"']['url']
         match = re.search('git\@github\.com:([\w._\/-]+)\.git', remote_url)
         self.name = match.group(1)
@@ -40,7 +57,6 @@ class Section:
         else:
             self.name = re.match(VERSION_PATTERN, lines[0]).group(1)
         
-#         self.lines = file_lines[start_line:stop_line]
         self.lines = lines
         
 class UnreleasedSection(Section):
@@ -62,10 +78,19 @@ class UnreleasedSection(Section):
 
         # subsection ranges
         subsection_indexes = lines_to_indexes(self.lines, subsection_lines)
-        subsection_indexes.append(len(self.lines))
+        
+        if subsection_indexes:
+            subsection_indexes.append(len(self.lines))
+        
         subsections_ranges = list(pairwise(subsection_indexes))
-
-        self.header = lines[0:subsection_indexes[0]]
+        
+        if subsection_indexes:
+            # if there are subsections, header is until the first one
+            self.header = self.lines[0:subsection_indexes[0]]
+        else:
+            #otherwise is all the lines
+            self.header = self.lines
+            
         
         # combine subsection header with range        
         subsections = list(zip(subsection_lines, subsections_ranges))
@@ -134,9 +159,13 @@ class UnreleasedSection(Section):
         
  
 class EditableChangelog:
-    def __init__(self):
+    def __init__(self, project_dir, changelog_filename):
+        self.project_dir = project_dir
+        self.changelog_filename = changelog_filename
+        print('Project dir: {}'.format(self.project_dir))
+        print('Changelog filename: {}'.format(self.changelog_filename))
         file_lines = []
-        with open(file_path(CHANGELOG_FILE_NAME)) as fh:
+        with open(file_path(self.project_dir, self.changelog_filename)) as fh:
             file_lines = [ line.rstrip() for line in fh.readlines() ]
             
             unreleased = next(filter(lambda x: re.match('## \[Unreleased\]', x, re.IGNORECASE) is not None, file_lines), None)
@@ -154,12 +183,16 @@ class EditableChangelog:
             # Get footnotes
             self.releases_footnotes = list(filter(lambda x: re.match(RELEASE_FOOTNOTE_REGEX, x), file_lines))
             release_footnotes_indexes = lines_to_indexes(file_lines, self.releases_footnotes)
-            sections_indexes.append(release_footnotes_indexes[0]) # add first footnote to build last pair
+            if(release_footnotes_indexes):
+                sections_indexes.append(release_footnotes_indexes[0]) # add first footnote to build last pair
             pairs = pairwise(sections_indexes)
             
             # Build sections objects with all sections (including unreleased)
             self.closed_sections = list(map(lambda tuple: Section(file_lines[tuple[0]:tuple[1]]), pairs))
-            self.unreleased_section = UnreleasedSection(file_lines[unreleased_index:sections_indexes[0]])
+            if(sections_indexes):
+                self.unreleased_section = UnreleasedSection(file_lines[unreleased_index:sections_indexes[0]])
+            else:
+                self.unreleased_section = UnreleasedSection(file_lines[unreleased_index:])
     
     
     def close(self):
@@ -170,12 +203,12 @@ class EditableChangelog:
             all_lines.append(section.lines)
         all_lines.append(self.releases_footnotes)
         
-        file = open(file_path(CHANGELOG_FILE_NAME), 'w')
+        file = open(file_path(self.project_dir, self.changelog_filename), 'w')
         for sublist in all_lines:
             for item in sublist:
                 file.write(item + '\n')
         file.close()
-        print('\n[OK] Changelog file edited')
+        print(success('\n[OK] Changelog file edited'))
 
         
     def existing_versions(self):
@@ -183,9 +216,11 @@ class EditableChangelog:
     
     def close_unreleased_section(self, new_version_number, repository):
         # close compare url
-        compare = self.releases_footnotes[0].replace('...HEAD', '...{}'.format(new_version_number))
-        # change tag name
-        self.releases_footnotes[0] = UNRELEASED_IGNORECASE.sub('[{}]'.format(new_version_number), compare)
+        if self.releases_footnotes:
+            compare = self.releases_footnotes[0].replace('...HEAD', '...{}'.format(new_version_number))
+            # change tag name
+            self.releases_footnotes[0] = UNRELEASED_IGNORECASE.sub('[{}]'.format(new_version_number), compare)
+        
         # insert new unreleased compare url
         new_unreleased_compare_url = '[Unreleased]: {}'.format(repository.compare_url(new_version_number, 'HEAD'))
         self.releases_footnotes.insert(0, new_unreleased_compare_url)
@@ -196,8 +231,8 @@ class EditableChangelog:
         
         self.close()
         
-def file_path(file_name):
-    return PROJECT_ROOT_DIR + file_name
+def file_path(project_root_dir, file_name):
+    return project_root_dir + '/' + file_name
 
 def pairwise(iterable):
     a, b = tee(iterable)
@@ -210,29 +245,29 @@ def exit_existing_version(intended_version, latest_version):
 def lines_to_indexes(file_lines, lines):
     return list(map(lambda x: file_lines.index(x), lines))
  
-def edit_changelog(func):
-    changelog = EditableChangelog()
-    func(changelog.unreleased_section)
+def edit_changelog(args, func):
+    changelog = EditableChangelog(args.dir, args.file)
+    func(changelog.unreleased_section)(args.message)
     changelog.close()
     
 def add(args):
-    edit_changelog(lambda c: c.add(args.message))
+    edit_changelog(args, lambda c: c.add)
 def change(args):
-    edit_changelog(lambda c: c.change(args.message))
+    edit_changelog(args, lambda c: c.change)
 def deprecate(args):
-    edit_changelog(lambda c: c.deprecate(args.message))    
+    edit_changelog(args, lambda c: c.deprecate)    
 def remove(args):
-    edit_changelog(lambda c: c.remove(args.message))
+    edit_changelog(args, lambda c: c.remove)
 def fix(args):
-    edit_changelog(lambda c: c.fix(args.message))
+    edit_changelog(args, lambda c: c.fix)
 def security(args):
-    edit_changelog(lambda c: c.security(args.message))
+    edit_changelog(args, lambda c: c.security)
     
 def new_release(args):
 
-    changelog = EditableChangelog()
+    changelog = EditableChangelog(args.dir, args.file)
 
-    repository = Repository()
+    repository = Repository(args.dir)
 
     if args.version_number in changelog.existing_versions():
         exit_existing_version(args.version_number, changelog.existing_versions()[0])
@@ -240,45 +275,62 @@ def new_release(args):
     print('Target release version: {}'.format(args.version_number))
     changelog.close_unreleased_section(args.version_number, repository)
 
+def init_changelog(args):
+    filename = file_path(args.dir, args.file)
     
+    if os.path.isfile(filename):
+        exit(error('[ERROR] Changelog file {} already exists'.format(filename)))
+    else:
+        file = open(filename, 'w+')
+        file.write(CHANGELOG_HEADER)
+        file.close()
+        print(success('[OK] Changelog file created as {}'.format(filename)))
+        
 def main():
-    parser = argparse.ArgumentParser(description='Performs operations on CHANGELOG file')
+    parser = argparse.ArgumentParser(description='Performs operations in CHANGELOG file')
     subparsers = parser.add_subparsers()
     
+    parser.add_argument('--dir', default=os.getcwd(), metavar='<directory>', help='Project\'s directory. Default: current directory')
+    parser.add_argument('--file', default=CHANGELOG_FILE_NAME, metavar='<filename>', help='Changelog file name. Default: {}'.format(CHANGELOG_FILE_NAME))
+        
     #create the parser for the "release" command
     parser_release = subparsers.add_parser('release')
     parser_release.add_argument('version_number', metavar='version', type=str, help='release version number')
     parser_release.set_defaults(func=new_release)
     
     #create the parser for the "add" command
-    parser_release = subparsers.add_parser('add')
-    parser_release.add_argument('message', metavar='message', type=str, help='message of added section')
-    parser_release.set_defaults(func=add)
+    parser_add = subparsers.add_parser('add')
+    parser_add.add_argument('message', metavar='message', type=str, help='message of added section')
+    parser_add.set_defaults(func=add)
     
     #create the parser for the "change" command
-    parser_release = subparsers.add_parser('change')
-    parser_release.add_argument('message', metavar='message', type=str, help='message of changed section')
-    parser_release.set_defaults(func=change)
+    parser_change = subparsers.add_parser('change')
+    parser_change.add_argument('message', metavar='message', type=str, help='message of changed section')
+    parser_change.set_defaults(func=change)
     
     #create the parser for the "deprecate" command
-    parser_release = subparsers.add_parser('deprecate')
-    parser_release.add_argument('message', metavar='message', type=str, help='message of deprecated section')
-    parser_release.set_defaults(func=deprecate)
+    parser_deprecate = subparsers.add_parser('deprecate')
+    parser_deprecate.add_argument('message', metavar='message', type=str, help='message of deprecated section')
+    parser_deprecate.set_defaults(func=deprecate)
     
     #create the parser for the "remove" command
-    parser_release = subparsers.add_parser('remove')
-    parser_release.add_argument('message', metavar='message', type=str, help='message of removed section')
-    parser_release.set_defaults(func=remove)
+    parser_remove = subparsers.add_parser('remove')
+    parser_remove.add_argument('message', metavar='message', type=str, help='message of removed section')
+    parser_remove.set_defaults(func=remove)
     
     #create the parser for the "fix" command
-    parser_release = subparsers.add_parser('fix')
-    parser_release.add_argument('message', metavar='message', type=str, help='message of fixed section')
-    parser_release.set_defaults(func=fix)
+    parser_fix = subparsers.add_parser('fix')
+    parser_fix.add_argument('message', metavar='message', type=str, help='message of fixed section')
+    parser_fix.set_defaults(func=fix)
     
     #create the parser for the "security" command
-    parser_release = subparsers.add_parser('security')
-    parser_release.add_argument('message', metavar='message', type=str, help='message of security section')
-    parser_release.set_defaults(func=security)
+    parser_security = subparsers.add_parser('security')
+    parser_security.add_argument('message', metavar='message', type=str, help='message of security section')
+    parser_security.set_defaults(func=security)
+    
+    #create the parser for "init" changelog command
+    parser_init = subparsers.add_parser('init', description='creates a new changelog file')
+    parser_init.set_defaults(func=init_changelog)
     
     args = parser.parse_args()
     args.func(args)
