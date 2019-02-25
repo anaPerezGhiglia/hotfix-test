@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# obtain the line-number of the first release tag 
+firstTagLine=`sed -n "/\#\# \[/=" CHANGELOG.md | head -n 1`
+
+# add the [UNRELEASED] tag before the first tag line
+sed -i "$firstTagLine i \#\# \[UNRELEASED\]\n" CHANGELOG.md

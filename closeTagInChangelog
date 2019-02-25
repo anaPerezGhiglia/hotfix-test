@@ -1,0 +1,12 @@
+#!/bin/bash
+
+releaseVersion=$1
+
+if [ -z "$releaseVersion" ]
+then
+	echo "Must provide new release version"
+	echo "Exiting without performing any changes"
+	exit
+fi
+
+sed -i "s/UNRELEASED/$releaseVersion/" CHANGELOG.md

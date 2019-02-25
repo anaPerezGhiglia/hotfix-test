@@ -1,0 +1,5 @@
+#!/bin/bash
+
+firstTwoTags=`sed -n "/\#\# \[/=" CHANGELOG.md | head -n 2`
+lines=`echo $firstTwoTags |  awk '{print $1+1","$2-1}'`
+sed -n "$lines p" CHANGELOG.md
