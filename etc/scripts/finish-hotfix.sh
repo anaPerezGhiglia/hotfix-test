@@ -26,6 +26,10 @@ git pull origin master
 git checkout $RELEASE_BRANCH_NAME
 git pull origin $RELEASE_BRANCH_NAME
 
+rosie release $RELEASE_BRANCH_NAME
+git commit -am "CHANGELOG: release version $RELEASE_BRANCH_NAME"
+git push origin release/$RELEASE_BRANCH_NAME
+
 git checkout master
 git merge -s recursive -X theirs $RELEASE_BRANCH_NAME
 git push origin master
